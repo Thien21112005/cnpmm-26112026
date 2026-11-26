@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
   ArrowLeftRight,
@@ -6,13 +6,12 @@ import {
   HardDrive,
   Menu,
   PackagePlus,
-  RotateCcw,
+  RefreshCw,
   Users,
   Wrench,
   X,
 } from 'lucide-react';
-import { getStoreMode, repairStore, resetDemoData } from '../services/repairStore';
-import { useToast } from './Toast';
+import { repairStore } from '../services/repairStore';
 
 const NAV_ITEMS = [
   { to: '/tickets', label: 'Phiếu sửa chữa', icon: ClipboardList },
@@ -24,18 +23,17 @@ const NAV_ITEMS = [
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [mode, setMode] = useState(getStoreMode());
-  const toast = useToast();
+  const [apiStatus, setApiStatus] = useState('checking'); // 'checking' | 'online' | 'offline'
 
-  useEffect(() => {
-    repairStore.init().then((m) => setMode(m));
+  const verifyApi = useCallback(async () => {
+    setApiStatus('checking');
+    const state = await repairStore.checkHealth();
+    setApiStatus(state);
   }, []);
 
-  const handleResetDemo = () => {
-    resetDemoData();
-    toast('Đã khôi phục dữ liệu mẫu ban đầu.');
-    window.location.reload();
-  };
+  useEffect(() => {
+    verifyApi();
+  }, [verifyApi]);
 
   return (
     <div className="app-shell">
@@ -91,19 +89,28 @@ export function AppLayout() {
         <div className="sidebar-footer">
           <div className="mode-chip">
             <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span className={`mode-dot ${mode}`} aria-hidden="true" />
-              <span>{mode === 'api' ? 'API MongoDB :5002' : 'Dữ liệu mẫu cục bộ'}</span>
+              <span
+                className={`mode-dot ${apiStatus === 'online' ? 'api' : 'offline'}`}
+                aria-hidden="true"
+              />
+              <span>
+                {apiStatus === 'online'
+                  ? 'API MongoDB :5002'
+                  : apiStatus === 'checking'
+                    ? 'Đang kết nối :5002…'
+                    : 'Mất kết nối API :5002'}
+              </span>
             </span>
-            {mode === 'demo' && (
+            {apiStatus === 'offline' && (
               <button
                 type="button"
                 className="btn btn-ghost btn-icon"
                 style={{ width: 24, height: 24, padding: 2 }}
-                onClick={handleResetDemo}
-                title="Khôi phục dữ liệu mẫu"
-                aria-label="Khôi phục dữ liệu mẫu"
+                onClick={verifyApi}
+                title="Kiểm tra lại kết nối Backend"
+                aria-label="Kiểm tra lại kết nối Backend"
               >
-                <RotateCcw size={13} />
+                <RefreshCw size={13} />
               </button>
             )}
           </div>

@@ -279,8 +279,8 @@ button {
   background: #16a34a;
 }
 
-.mode-dot.demo {
-  background: #d97706;
+.mode-dot.offline {
+  background: #dc2626;
 }
 
 .swap-link {

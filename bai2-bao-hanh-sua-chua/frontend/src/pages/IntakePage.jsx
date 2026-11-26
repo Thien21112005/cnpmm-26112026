@@ -46,13 +46,17 @@ export function IntakePage() {
       repairStore.getCustomers(),
       repairStore.getTechnicians(),
       repairStore.suggestDeviceCode(),
-    ]).then(([cList, tList, suggestedCode]) => {
-      setCustomers(cList);
-      setTechnicians(tList);
-      if (cList[0]) setCustomerId(cList[0]._id);
-      if (tList[0]) setTicketForm((p) => ({ ...p, technicianId: tList[0]._id }));
-      setDevice((p) => ({ ...p, deviceCode: suggestedCode }));
-    });
+    ])
+      .then(([cList, tList, suggestedCode]) => {
+        setCustomers(cList);
+        setTechnicians(tList);
+        if (cList[0]) setCustomerId(cList[0]._id);
+        if (tList[0]) setTicketForm((p) => ({ ...p, technicianId: tList[0]._id }));
+        setDevice((p) => ({ ...p, deviceCode: suggestedCode }));
+      })
+      .catch((err) => {
+        setError(err.message);
+      });
   }, []);
 
   const handleSubmit = async (e) => {
