@@ -1,0 +1,14 @@
+{
+  "name": "baitapnhom-cnpmm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Workspace quản lý và chuyển đổi giữa Bài 1 (Đặt bàn nhà hàng) và Bài 2 (Bảo hành & sửa chữa thiết bị điện tử)",
+  "scripts": {
+    "bai1:install": "npm --prefix bai1-quan-ly-dat-ban/backend install && npm --prefix bai1-quan-ly-dat-ban/frontend install",
+    "bai1:be": "npm --prefix bai1-quan-ly-dat-ban/backend run dev",
+    "bai1:fe": "npm --prefix bai1-quan-ly-dat-ban/frontend run dev",
+    "bai2:install": "npm --prefix bai2-bao-hanh-sua-chua/backend install && npm --prefix bai2-bao-hanh-sua-chua/frontend install",
+    "bai2:be": "npm --prefix bai2-bao-hanh-sua-chua/backend run dev",
+    "bai2:fe": "npm --prefix bai2-bao-hanh-sua-chua/frontend run dev"
+  }
+}
