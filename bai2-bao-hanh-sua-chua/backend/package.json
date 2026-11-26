@@ -1,0 +1,20 @@
+{
+  "name": "bai2-bao-hanh-sua-chua-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend REST API (Express + Mongoose + MongoDB) cho Bài 2: Quản lý bảo hành và sửa chữa thiết bị điện tử",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/seed/seedData.js",
+    "seed:reset": "node src/seed/seedData.js --reset",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongoose": "^8.12.1"
+  }
+}
