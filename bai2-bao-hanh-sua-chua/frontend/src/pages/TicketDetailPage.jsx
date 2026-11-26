@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   Check,
   History,
+  Printer,
   Save,
 } from 'lucide-react';
 import { repairStore } from '../services/repairStore';
@@ -15,6 +16,7 @@ import {
   formatVND,
 } from '../constants/repair';
 import { StatusBadge } from '../components/StatusBadge';
+import { DeviceTypeIcon } from '../components/DeviceTypeIcon';
 import { useToast } from '../components/Toast';
 
 export function TicketDetailPage() {
@@ -83,7 +85,7 @@ export function TicketDetailPage() {
   };
 
   if (loading) {
-    return <p className="field-hint">Đang tải chi tiết phiếu sửa chữa…</p>;
+    return <p className="field-hint">Đang tải hồ sơ phiếu sửa chữa…</p>;
   }
 
   if (error || !ticket) {
@@ -110,68 +112,110 @@ export function TicketDetailPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <Link to="/tickets" className="btn btn-sm">
-              <ArrowLeft size={14} />
-              Danh sách phiếu
-            </Link>
-            <span className="mono" style={{ fontWeight: 600, color: 'var(--ink-secondary)' }}>
-              {ticket.ticketCode}
-            </span>
-            <StatusBadge status={ticket.status} />
-          </div>
-          <h1 className="page-title" style={{ marginTop: 10 }}>
-            {device.name || 'Thiết bị sửa chữa'}
-          </h1>
-          <p className="page-subtitle tabular">
-            Lập phiếu: {formatDateTime(ticket.receivedAt)}
-            {ticket.completedAt ? ` · Hoàn thành: ${formatDateTime(ticket.completedAt)}` : ''}
-            {ticket.deliveredAt ? ` · Bàn giao: ${formatDateTime(ticket.deliveredAt)}` : ''}
-          </p>
-        </div>
-      </div>
-
-      {/* 5-Stage Progress Stepper */}
-      <div className="stepper" aria-label="Tiến độ 5 trạng thái sửa chữa">
-        {TICKET_STATUSES.map((st, idx) => {
-          const isDone = idx < currentStep;
-          const isCurrent = idx === currentStep;
-          return (
-            <div
-              key={st}
-              className={`step-item${isDone ? ' done' : ''}${isCurrent ? ' current' : ''}`}
-            >
-              <span className="step-index tabular">
-                {isDone ? <Check size={12} /> : `Bước ${idx + 1}`}
+      {/* Dark Anodized Service Dossier Banner */}
+      <section className="console-banner">
+        <div className="console-banner-top">
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <Link to="/tickets" className="btn btn-dark btn-sm no-print">
+                <ArrowLeft size={14} />
+                Phiếu sửa chữa
+              </Link>
+              <span
+                className="mono"
+                style={{
+                  fontWeight: 700,
+                  color: '#fb923c',
+                  background: 'rgba(217, 78, 12, 0.16)',
+                  border: '1px solid rgba(251, 146, 60, 0.3)',
+                  padding: '2px 8px',
+                  borderRadius: 5,
+                }}
+              >
+                {ticket.ticketCode}
               </span>
-              <span className="step-name">{st}</span>
+              <StatusBadge status={ticket.status} />
             </div>
-          );
-        })}
-      </div>
+
+            <h1 className="console-title" style={{ marginTop: 12 }}>
+              {device.name || 'Thiết bị sửa chữa'}
+            </h1>
+            <p className="console-sub tabular">
+              <span className="mono">{device.deviceCode}</span> · S/N{' '}
+              <span className="mono">{device.serialNumber}</span> · Lập phiếu:{' '}
+              {formatDateTime(ticket.receivedAt)}
+              {ticket.completedAt ? ` · Hoàn thành: ${formatDateTime(ticket.completedAt)}` : ''}
+              {ticket.deliveredAt ? ` · Bàn giao: ${formatDateTime(ticket.deliveredAt)}` : ''}
+            </p>
+          </div>
+
+          <div className="header-actions no-print">
+            <button type="button" className="btn btn-dark" onClick={() => window.print()}>
+              <Printer size={15} />
+              In phiếu biên nhận
+            </button>
+          </div>
+        </div>
+
+        {/* Interactive 5-Stage Pipeline Track (Click any stage to target in form) */}
+        <div className="stepper" role="group" aria-label="Tiến độ 5 trạng thái sửa chữa">
+          {TICKET_STATUSES.map((st, idx) => {
+            const isDone = idx < currentStep;
+            const isCurrent = idx === currentStep;
+            return (
+              <button
+                key={st}
+                type="button"
+                className={`step-btn${isDone ? ' done' : ''}${isCurrent ? ' current' : ''}`}
+                onClick={() => {
+                  setStatus(st);
+                  if (
+                    (st === 'Đã hoàn thành' || st === 'Đã bàn giao') &&
+                    (!actualCost || Number(actualCost) === 0) &&
+                    ticket.estimatedCost > 0
+                  ) {
+                    setActualCost(String(ticket.estimatedCost));
+                  }
+                }}
+                title={`Chọn nhanh trạng thái "${st}" vào form cập nhật`}
+              >
+                <span className="step-index">
+                  {isDone ? <Check size={12} /> : `0${idx + 1}`}
+                  {status === st && st !== ticket.status ? ' · Đang chọn' : ''}
+                </span>
+                <span className="step-name">{st}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="detail-grid">
         {/* Left Main Content */}
         <div className="stack-v">
           <section className="panel">
             <div className="panel-header">
-              <h2 className="panel-title">Lỗi thiết bị & Chi phí sửa chữa</h2>
-              <span className="cell-sub">
-                KTV: <strong>{ticket.technicianId?.fullName || '—'}</strong> ({ticket.technicianId?.code})
+              <h2 className="panel-title">Lỗi thiết bị & Bảng đối chiếu chi phí</h2>
+              <span className="serial-plate">
+                KTV: {ticket.technicianId?.fullName || '—'} ({ticket.technicianId?.code})
               </span>
             </div>
             <div className="panel-body stack-v">
               <div>
-                <div className="meta-label">Lỗi tiếp nhận</div>
-                <p style={{ margin: '4px 0 0', fontSize: 14 }}>{ticket.issueDescription}</p>
+                <div className="meta-label">Lỗi ghi nhận lúc tiếp nhận</div>
+                <p style={{ margin: '4px 0 0', fontSize: 14.5 }}>{ticket.issueDescription}</p>
               </div>
 
               <div>
                 <div className="meta-label">Chẩn đoán / kết quả kỹ thuật</div>
-                <p style={{ margin: '4px 0 0', fontSize: 14, color: ticket.diagnosisNotes ? 'var(--ink-primary)' : 'var(--ink-muted)' }}>
-                  {ticket.diagnosisNotes || 'Chưa cập nhật ghi chú chẩn đoán.'}
+                <p
+                  style={{
+                    margin: '4px 0 0',
+                    fontSize: 14,
+                    color: ticket.diagnosisNotes ? 'var(--ink-primary)' : 'var(--ink-muted)',
+                  }}
+                >
+                  {ticket.diagnosisNotes || 'Chưa cập nhật ghi chú chẩn đoán kỹ thuật.'}
                 </p>
               </div>
 
@@ -210,8 +254,11 @@ export function TicketDetailPage() {
 
           <section className="panel">
             <div className="panel-header">
-              <h2 className="panel-title">Thông tin thiết bị & Khách hàng sở hữu</h2>
-              <span className="type-tag">{device.deviceType || 'Thiết bị'}</span>
+              <h2 className="panel-title">Thông số thiết bị & Khách hàng sở hữu</h2>
+              <span className="type-tag">
+                <DeviceTypeIcon type={device.deviceType} size={13} />
+                {device.deviceType || 'Thiết bị'}
+              </span>
             </div>
             <div className="panel-body">
               <div className="meta-grid">
@@ -247,9 +294,7 @@ export function TicketDetailPage() {
           <section className="panel">
             <div className="panel-header">
               <h2 className="panel-title">Nhật ký cập nhật trạng thái</h2>
-              <span className="cell-sub tabular">
-                {(ticket.statusHistory || []).length} mốc thời gian
-              </span>
+              <span className="chip-count">{(ticket.statusHistory || []).length} mốc</span>
             </div>
             <div className="panel-body">
               <ol className="timeline">
@@ -269,15 +314,13 @@ export function TicketDetailPage() {
             </div>
           </section>
 
-          <section className="panel">
+          <section className="panel no-print">
             <div className="panel-header">
               <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <History size={16} />
+                <History size={16} aria-hidden="true" />
                 Lịch sử sửa chữa của thiết bị {device.deviceCode}
               </h2>
-              <span className="cell-sub tabular">
-                {(ticket.deviceHistory || []).length} phiếu
-              </span>
+              <span className="chip-count">{(ticket.deviceHistory || []).length} phiếu</span>
             </div>
             <div className="table-scroll">
               <table className="data-table">
@@ -287,7 +330,7 @@ export function TicketDetailPage() {
                     <th>Ngày lập</th>
                     <th>Lỗi ghi nhận</th>
                     <th>Trạng thái</th>
-                    <th style={{ textAlign: 'right' }}>Chi phí TT</th>
+                    <th style={{ textAlign: 'right' }}>Chi phí</th>
                     <th aria-label="Mở phiếu" />
                   </tr>
                 </thead>
@@ -295,11 +338,17 @@ export function TicketDetailPage() {
                   {(ticket.deviceHistory || []).map((h) => {
                     const isCurrent = h._id === ticket._id;
                     return (
-                      <tr key={h._id} style={isCurrent ? { background: 'var(--accent-soft)' } : undefined}>
+                      <tr
+                        key={h._id}
+                        style={isCurrent ? { background: 'var(--accent-soft)' } : undefined}
+                      >
                         <td className="mono cell-primary">
                           {h.ticketCode}
                           {isCurrent && (
-                            <span className="cell-sub" style={{ display: 'block', fontFamily: 'var(--font-sans)' }}>
+                            <span
+                              className="cell-sub"
+                              style={{ display: 'block', fontFamily: 'var(--font-sans)' }}
+                            >
                               Đang xem
                             </span>
                           )}
@@ -332,9 +381,9 @@ export function TicketDetailPage() {
         </div>
 
         {/* Right Action Rail: Form cập nhật trạng thái sửa chữa */}
-        <aside className="panel" style={{ position: 'sticky', top: 20 }}>
-          <div className="panel-header">
-            <h2 className="panel-title">Cập nhật trạng thái sửa chữa</h2>
+        <aside className="panel no-print" style={{ position: 'sticky', top: 20 }}>
+          <div className="panel-header" style={{ background: '#faf8f4' }}>
+            <h2 className="panel-title">Cập nhật trạng thái & chi phí</h2>
           </div>
           <form onSubmit={handleUpdate} className="panel-body stack-v">
             {formError && <div className="inline-alert">{formError}</div>}
@@ -367,7 +416,7 @@ export function TicketDetailPage() {
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
-                    style={{ padding: '2px 6px', fontSize: 12 }}
+                    style={{ padding: '2px 6px', fontSize: 12, color: 'var(--accent)' }}
                     onClick={() => setActualCost(String(ticket.estimatedCost))}
                   >
                     Lấy bằng dự kiến
@@ -386,8 +435,8 @@ export function TicketDetailPage() {
               />
               {needsCostReminder && (
                 <div className="inline-info" style={{ marginTop: 4 }}>
-                  Phiếu sắp chuyển sang <strong>{status}</strong> nhưng chi phí thực tế đang là 0 ₫.
-                  Bấm “Lấy bằng dự kiến” hoặc nhập số tiền thực tế trước khi lưu.
+                  Phiếu chuyển sang <strong>{status}</strong> nhưng chi phí thực tế đang là 0 ₫.
+                  Bấm “Lấy bằng dự kiến” hoặc nhập số tiền thực tế.
                 </div>
               )}
             </div>
@@ -447,4 +496,3 @@ export function TicketDetailPage() {
     </div>
   );
 }
-

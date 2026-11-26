@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, Plus, Wrench } from 'lucide-react';
 import { repairStore } from '../services/repairStore';
@@ -31,6 +31,11 @@ export function TechniciansPage() {
     loadData();
   }, [loadData]);
 
+  const maxLoad = useMemo(
+    () => Math.max(4, ...technicians.map((t) => Number(t.activeTicketCount || 0))),
+    [technicians]
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -52,9 +57,9 @@ export function TechniciansPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Đội ngũ kỹ thuật viên</h1>
+          <h1 className="page-title">Bàn kỹ thuật & Phân bổ tải</h1>
           <p className="page-subtitle">
-            Theo dõi khối lượng phiếu đang xử lý của từng kỹ thuật viên để phân công hợp lý.
+            Theo dõi mức tải phiếu đang xử lý theo từng kỹ thuật viên để phân công sửa chữa cân bằng.
           </p>
         </div>
         <div className="header-actions">
@@ -84,51 +89,80 @@ export function TechniciansPage() {
         </div>
       ) : (
         <div className="tech-grid">
-          {technicians.map((tech) => (
-            <article key={tech._id} className="tech-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div>
-                  <div className="cell-primary" style={{ fontSize: 15 }}>
-                    {tech.fullName}
+          {technicians.map((tech) => {
+            const active = Number(tech.activeTicketCount || 0);
+            const pct = Math.min(100, Math.round((active / maxLoad) * 100));
+            const loadLabel = active === 0 ? 'Sẵn sàng' : active >= 3 ? 'Tải cao' : 'Đang xử lý';
+            return (
+              <article key={tech._id} className="tech-card">
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: 8,
+                  }}
+                >
+                  <div>
+                    <div className="cell-primary" style={{ fontSize: 15.5 }}>
+                      {tech.fullName}
+                    </div>
+                    <div className="cell-sub">{tech.specialty}</div>
                   </div>
-                  <div className="cell-sub">{tech.specialty}</div>
+                  <span className="job-code">{tech.code}</span>
                 </div>
-                <span className="type-tag mono">{tech.code}</span>
-              </div>
 
-              <div className="cell-sub tabular">SĐT nội bộ: {tech.phone}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 12,
+                      color: 'var(--ink-muted)',
+                    }}
+                  >
+                    <span>Tải bàn kỹ thuật · {loadLabel}</span>
+                    <span className="mono">{active} phiếu mở</span>
+                  </div>
+                  <div className="load-meter" aria-hidden="true">
+                    <div className="load-meter-fill" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
 
-              <div className="tech-stats">
-                <div>
-                  <div className="meta-label">Đang giữ</div>
-                  <div className="cost-value" style={{ fontSize: 18, color: 'var(--accent)' }}>
-                    {tech.activeTicketCount}
-                  </div>
-                </div>
-                <div>
-                  <div className="meta-label">Hoàn thành</div>
-                  <div className="cost-value" style={{ fontSize: 18 }}>
-                    {tech.completedTicketCount}
-                  </div>
-                </div>
-                <div>
-                  <div className="meta-label">Tổng phiếu</div>
-                  <div className="cost-value" style={{ fontSize: 18 }}>
-                    {tech.totalTicketCount}
-                  </div>
-                </div>
-              </div>
+                <div className="cell-sub tabular">SĐT nội bộ: {tech.phone}</div>
 
-              <Link
-                to={`/tickets?technicianId=${tech._id}`}
-                className="btn btn-sm"
-                style={{ width: '100%' }}
-              >
-                Xem phiếu phụ trách
-                <ArrowUpRight size={14} />
-              </Link>
-            </article>
-          ))}
+                <div className="tech-stats">
+                  <div>
+                    <div className="meta-label">Đang giữ</div>
+                    <div className="cost-value" style={{ fontSize: 19, color: 'var(--accent)' }}>
+                      {tech.activeTicketCount}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="meta-label">Hoàn thành</div>
+                    <div className="cost-value" style={{ fontSize: 19 }}>
+                      {tech.completedTicketCount}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="meta-label">Tổng phiếu</div>
+                    <div className="cost-value" style={{ fontSize: 19 }}>
+                      {tech.totalTicketCount}
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  to={`/tickets?technicianId=${tech._id}`}
+                  className="btn btn-sm"
+                  style={{ width: '100%' }}
+                >
+                  Xem phiếu phụ trách
+                  <ArrowUpRight size={14} />
+                </Link>
+              </article>
+            );
+          })}
         </div>
       )}
 
@@ -158,6 +192,7 @@ export function TechniciansPage() {
             <input
               id="t-code"
               type="text"
+              spellCheck={false}
               className="input mono"
               placeholder="Để trống tự sinh (VD: KTV-05)"
               value={form.code}
@@ -213,4 +248,3 @@ export function TechniciansPage() {
     </div>
   );
 }
-

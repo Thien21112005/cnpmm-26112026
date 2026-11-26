@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import { repairStore } from '../services/repairStore';
 import { Drawer } from '../components/Drawer';
@@ -15,9 +15,11 @@ const EMPTY_FORM = {
 };
 
 export function CustomersPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
+
   const [customers, setCustomers] = useState([]);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [loading, setLoading] = useState(true);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -43,11 +45,15 @@ export function CustomersPage() {
   );
 
   useEffect(() => {
+    const next = {};
+    if (search.trim()) next.search = search.trim();
+    setSearchParams(next, { replace: true });
+
     const timer = setTimeout(() => {
       loadCustomers(search);
     }, 120);
     return () => clearTimeout(timer);
-  }, [search, loadCustomers]);
+  }, [search, loadCustomers, setSearchParams]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -106,9 +112,9 @@ export function CustomersPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Quản lý khách hàng</h1>
+          <h1 className="page-title">Danh bạ khách hàng</h1>
           <p className="page-subtitle">
-            Tra cứu nhanh theo họ tên hoặc số điện thoại, cập nhật thông tin liên hệ và thiết bị sở hữu.
+            Tra cứu theo họ tên hoặc số điện thoại, theo dõi thiết bị sở hữu và bảo vệ dữ liệu liên kết khi xóa.
           </p>
         </div>
         <div className="header-actions">
@@ -132,7 +138,7 @@ export function CustomersPage() {
               aria-label="Tìm kiếm khách hàng theo tên hoặc số điện thoại"
             />
           </div>
-          <span className="cell-sub tabular">{customers.length} khách hàng</span>
+          <span className="chip-count">{customers.length} khách hàng</span>
         </div>
 
         {loading ? (
@@ -172,8 +178,8 @@ export function CustomersPage() {
                 {customers.map((c) => (
                   <tr key={c._id}>
                     <td className="cell-primary">{c.fullName}</td>
-                    <td className="tabular" style={{ whiteSpace: 'nowrap', fontWeight: 500 }}>
-                      {c.phone}
+                    <td>
+                      <span className="serial-plate tabular">{c.phone}</span>
                     </td>
                     <td>
                       <div>{c.email || '—'}</div>
@@ -183,8 +189,8 @@ export function CustomersPage() {
                       {c.deviceCount > 0 ? (
                         <Link
                           to={`/devices?customerId=${c._id}`}
-                          className="type-tag"
-                          style={{ color: 'var(--accent)', borderColor: 'var(--accent-border)' }}
+                          className="job-code"
+                          title="Xem danh sách thiết bị của khách hàng này"
                         >
                           {c.deviceCount} thiết bị
                         </Link>
@@ -192,7 +198,7 @@ export function CustomersPage() {
                         <span className="cell-sub">0 thiết bị</span>
                       )}
                     </td>
-                    <td style={{ maxWidth: 220 }}>
+                    <td style={{ maxWidth: 230 }}>
                       <span className="cell-sub">{c.note || '—'}</span>
                     </td>
                     <td>
@@ -305,6 +311,7 @@ export function CustomersPage() {
             <input
               id="c-email"
               type="email"
+              spellCheck={false}
               className="input"
               placeholder="example@gmail.com"
               value={form.email}
@@ -343,4 +350,3 @@ export function CustomersPage() {
     </div>
   );
 }
-

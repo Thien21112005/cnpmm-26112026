@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
+  ChevronRight,
   ClipboardList,
+  Kanban,
   PackagePlus,
   Plus,
   Search,
+  Table2,
   X,
 } from 'lucide-react';
 import { repairStore } from '../services/repairStore';
@@ -16,9 +19,18 @@ import {
   formatVND,
 } from '../constants/repair';
 import { StatusBadge } from '../components/StatusBadge';
+import { DeviceTypeIcon } from '../components/DeviceTypeIcon';
 import { Drawer } from '../components/Drawer';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/Toast';
+
+const STAGE_COLORS = {
+  'Mới tiếp nhận': 'var(--st-received-bar)',
+  'Đang kiểm tra': 'var(--st-inspecting-bar)',
+  'Đang sửa chữa': 'var(--st-repairing-bar)',
+  'Đã hoàn thành': 'var(--st-completed-bar)',
+  'Đã bàn giao': 'var(--st-delivered-bar)',
+};
 
 export function TicketsPage() {
   const navigate = useNavigate();
@@ -29,7 +41,9 @@ export function TicketsPage() {
   const [devices, setDevices] = useState([]);
   const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [advancingId, setAdvancingId] = useState(null);
 
+  const [viewMode, setViewMode] = useState(searchParams.get('view') || 'board');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [techFilter, setTechFilter] = useState(searchParams.get('technicianId') || '');
@@ -74,19 +88,31 @@ export function TicketsPage() {
 
   useEffect(() => {
     const next = {};
+    if (viewMode !== 'board') next.view = viewMode;
     if (statusFilter) next.status = statusFilter;
     if (techFilter) next.technicianId = techFilter;
     if (search.trim()) next.search = search.trim();
     setSearchParams(next, { replace: true });
-  }, [statusFilter, techFilter, search, setSearchParams]);
+  }, [viewMode, statusFilter, techFilter, search, setSearchParams]);
 
-  const statusCounts = useMemo(() => {
-    const map = {};
-    for (const s of TICKET_STATUSES) map[s] = 0;
+  const metrics = useMemo(() => {
+    const counts = {};
+    for (const s of TICKET_STATUSES) counts[s] = 0;
+    let activeCount = 0;
+    let readyCount = 0;
+    let openEstimate = 0;
+    let realizedRevenue = 0;
+
     for (const t of allTickets) {
-      if (map[t.status] !== undefined) map[t.status] += 1;
+      if (counts[t.status] !== undefined) counts[t.status] += 1;
+      if (t.status !== 'Đã bàn giao') {
+        activeCount += 1;
+        openEstimate += Number(t.estimatedCost || 0);
+      }
+      if (t.status === 'Đã hoàn thành') readyCount += 1;
+      realizedRevenue += Number(t.actualCost || 0);
     }
-    return map;
+    return { counts, activeCount, readyCount, openEstimate, realizedRevenue };
   }, [allTickets]);
 
   const filteredTickets = useMemo(() => {
@@ -107,7 +133,40 @@ export function TicketsPage() {
     });
   }, [allTickets, statusFilter, techFilter, search]);
 
+  const boardColumns = useMemo(() => {
+    const map = {};
+    for (const s of TICKET_STATUSES) map[s] = [];
+    for (const t of filteredTickets) {
+      if (map[t.status]) map[t.status].push(t);
+    }
+    return map;
+  }, [filteredTickets]);
+
   const hasFilters = Boolean(statusFilter || techFilter || search.trim());
+
+  const handleAdvanceStatus = async (ticket) => {
+    const curIdx = TICKET_STATUSES.indexOf(ticket.status);
+    if (curIdx < 0 || curIdx >= TICKET_STATUSES.length - 1) return;
+    const nextStatus = TICKET_STATUSES[curIdx + 1];
+    setAdvancingId(ticket._id);
+    try {
+      const nextActual =
+        (nextStatus === 'Đã hoàn thành' || nextStatus === 'Đã bàn giao') && !ticket.actualCost
+          ? ticket.estimatedCost
+          : ticket.actualCost;
+      await repairStore.updateTicketStatus(ticket._id, {
+        status: nextStatus,
+        actualCost: nextActual,
+        note: `Chuyển nhanh trên bảng tiến độ sang "${nextStatus}".`,
+      });
+      toast(`${ticket.ticketCode} → ${nextStatus}`);
+      await loadData();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setAdvancingId(null);
+    }
+  };
 
   const handleCreateTicket = async (e) => {
     e.preventDefault();
@@ -134,56 +193,139 @@ export function TicketsPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Quản lý phiếu sửa chữa</h1>
-          <p className="page-subtitle">
-            Theo dõi tiến độ xử lý, phân công kỹ thuật viên và đối chiếu chi phí sửa chữa.
-          </p>
+      {/* Dark Graphite Workshop Telemetry Banner */}
+      <section className="console-banner">
+        <div className="console-banner-top">
+          <div>
+            <h1 className="console-title">Điều phối phiếu sửa chữa</h1>
+            <p className="console-sub">
+              Theo dõi 5 giai đoạn xử lý tại xưởng, phân công kỹ thuật viên và chốt chi phí theo từng thiết bị.
+            </p>
+          </div>
+          <div className="header-actions">
+            <Link to="/intake" className="btn btn-dark">
+              <PackagePlus size={15} />
+              Tiếp nhận thiết bị
+            </Link>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setFormError('');
+                setCreateOpen(true);
+              }}
+            >
+              <Plus size={15} />
+              Tạo phiếu mới
+            </button>
+          </div>
         </div>
-        <div className="header-actions">
-          <Link to="/intake" className="btn">
-            <PackagePlus size={15} />
-            Tiếp nhận thiết bị
-          </Link>
+
+        <div className="pulse-metrics">
+          <div className="pulse-stat">
+            <span className="pulse-label">Đang xử lý tại xưởng</span>
+            <span className="pulse-value accent">{metrics.activeCount}</span>
+          </div>
+          <div className="pulse-stat">
+            <span className="pulse-label">Chờ khách bàn giao</span>
+            <span className="pulse-value ok">{metrics.readyCount}</span>
+          </div>
+          <div className="pulse-stat">
+            <span className="pulse-label">Dự kiến đang mở</span>
+            <span className="pulse-value">{formatVND(metrics.openEstimate)}</span>
+          </div>
+          <div className="pulse-stat">
+            <span className="pulse-label">Chi phí thực tế đã chốt</span>
+            <span className="pulse-value">{formatVND(metrics.realizedRevenue)}</span>
+          </div>
+        </div>
+
+        {allTickets.length > 0 && (
+          <div className="pipeline-bar" aria-label="Tỷ lệ phiếu theo 5 trạng thái">
+            {TICKET_STATUSES.map((st) => {
+              const pct = ((metrics.counts[st] || 0) / allTickets.length) * 100;
+              if (pct === 0) return null;
+              return (
+                <div
+                  key={st}
+                  className="pipeline-seg"
+                  title={`${st}: ${metrics.counts[st]} phiếu`}
+                  style={{ width: `${pct}%`, backgroundColor: STAGE_COLORS[st] }}
+                />
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Stage Filter Chips + View Mode Toggle */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 14,
+        }}
+      >
+        <div className="chip-row" style={{ marginBottom: 0 }} role="group" aria-label="Lọc nhanh theo trạng thái">
           <button
             type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setFormError('');
-              setCreateOpen(true);
-            }}
+            className={`filter-chip${statusFilter === '' ? ' selected' : ''}`}
+            onClick={() => setStatusFilter('')}
           >
-            <Plus size={15} />
-            Tạo phiếu sửa chữa
+            <span>Tất cả</span>
+            <span className="chip-count">{allTickets.length}</span>
+          </button>
+          {TICKET_STATUSES.map((status) => (
+            <button
+              key={status}
+              type="button"
+              className={`filter-chip${statusFilter === status ? ' selected' : ''}`}
+              onClick={() => setStatusFilter((cur) => (cur === status ? '' : status))}
+            >
+              <span
+                className="kanban-col-dot"
+                style={{ backgroundColor: STAGE_COLORS[status] }}
+                aria-hidden="true"
+              />
+              <span>{STATUS_META[status].short}</span>
+              <span className="chip-count">{metrics.counts[status] || 0}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="segmented" role="group" aria-label="Chế độ hiển thị phiếu">
+          <button
+            type="button"
+            className={`seg-btn${viewMode === 'board' ? ' active' : ''}`}
+            onClick={() => setViewMode('board')}
+          >
+            <Kanban size={14} aria-hidden="true" />
+            Bảng tiến độ
+          </button>
+          <button
+            type="button"
+            className={`seg-btn${viewMode === 'table' ? ' active' : ''}`}
+            onClick={() => setViewMode('table')}
+          >
+            <Table2 size={14} aria-hidden="true" />
+            Danh sách
           </button>
         </div>
       </div>
 
-      <div className="status-strip" role="group" aria-label="Lọc nhanh theo trạng thái">
-        <button
-          type="button"
-          className={`status-tile${statusFilter === '' ? ' selected' : ''}`}
-          onClick={() => setStatusFilter('')}
+      {/* Filter Bar */}
+      <div className="panel" style={{ marginBottom: viewMode === 'board' ? 14 : 0 }}>
+        <div
+          className="toolbar"
+          style={
+            viewMode === 'board'
+              ? { borderBottom: 'none', borderRadius: 'var(--radius-md)' }
+              : undefined
+          }
         >
-          <span className="status-tile-label">Tất cả phiếu</span>
-          <span className="status-tile-count">{allTickets.length}</span>
-        </button>
-        {TICKET_STATUSES.map((status) => (
-          <button
-            key={status}
-            type="button"
-            className={`status-tile${statusFilter === status ? ' selected' : ''}`}
-            onClick={() => setStatusFilter((cur) => (cur === status ? '' : status))}
-          >
-            <span className="status-tile-label">{STATUS_META[status].short}</span>
-            <span className="status-tile-count">{statusCounts[status] || 0}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="panel">
-        <div className="toolbar">
           <div className="search-box">
             <Search size={15} />
             <input
@@ -240,122 +382,220 @@ export function TicketsPage() {
           )}
         </div>
 
-        {loading ? (
-          <div className="panel-body">
-            <p className="field-hint">Đang tải danh sách phiếu sửa chữa…</p>
-          </div>
-        ) : filteredTickets.length === 0 ? (
-          <EmptyState
-            icon={ClipboardList}
-            title="Không có phiếu sửa chữa phù hợp"
-            description={
-              hasFilters
-                ? 'Thử bỏ bớt điều kiện lọc kỹ thuật viên, trạng thái hoặc từ khóa tìm kiếm.'
-                : 'Bắt đầu bằng cách tiếp nhận thiết bị mới hoặc lập phiếu sửa chữa cho thiết bị đã có.'
-            }
-            action={
-              hasFilters ? (
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    setSearch('');
-                    setStatusFilter('');
-                    setTechFilter('');
-                  }}
-                >
-                  Xem toàn bộ phiếu
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => setCreateOpen(true)}
-                >
-                  <Plus size={15} />
-                  Tạo phiếu đầu tiên
-                </button>
-              )
-            }
-          />
-        ) : (
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Mã phiếu</th>
-                  <th>Thiết bị & Khách hàng</th>
-                  <th>Lỗi ghi nhận</th>
-                  <th>Kỹ thuật viên</th>
-                  <th style={{ textAlign: 'right' }}>Dự kiến / Thực tế</th>
-                  <th>Trạng thái</th>
-                  <th>Ngày lập</th>
-                  <th aria-label="Thao tác" />
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTickets.map((t) => (
-                  <tr
-                    key={t._id}
-                    className="row-clickable"
-                    onClick={() => navigate(`/tickets/${t._id}`)}
-                  >
-                    <td>
-                      <Link
-                        to={`/tickets/${t._id}`}
-                        className="mono cell-primary"
-                        style={{ color: 'var(--accent)' }}
-                        onClick={(e) => e.stopPropagation()}
+        {/* Table Mode */}
+        {viewMode === 'table' && (
+          <>
+            {loading ? (
+              <div className="panel-body">
+                <p className="field-hint">Đang tải danh sách phiếu sửa chữa…</p>
+              </div>
+            ) : filteredTickets.length === 0 ? (
+              <EmptyState
+                icon={ClipboardList}
+                title="Không có phiếu sửa chữa phù hợp"
+                description={
+                  hasFilters
+                    ? 'Thử bỏ bớt điều kiện lọc kỹ thuật viên, trạng thái hoặc từ khóa tìm kiếm.'
+                    : 'Bắt đầu bằng cách tiếp nhận thiết bị mới hoặc lập phiếu sửa chữa cho thiết bị đã có.'
+                }
+                action={
+                  hasFilters ? (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setSearch('');
+                        setStatusFilter('');
+                        setTechFilter('');
+                      }}
+                    >
+                      Xem toàn bộ phiếu
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => setCreateOpen(true)}
+                    >
+                      <Plus size={15} />
+                      Tạo phiếu đầu tiên
+                    </button>
+                  )
+                }
+              />
+            ) : (
+              <div className="table-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Mã phiếu</th>
+                      <th>Thiết bị & Khách hàng</th>
+                      <th>Lỗi ghi nhận</th>
+                      <th>Kỹ thuật viên</th>
+                      <th style={{ textAlign: 'right' }}>Dự kiến / Thực tế</th>
+                      <th>Trạng thái</th>
+                      <th>Ngày lập</th>
+                      <th aria-label="Thao tác" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTickets.map((t) => (
+                      <tr
+                        key={t._id}
+                        className="row-clickable"
+                        onClick={() => navigate(`/tickets/${t._id}`)}
                       >
-                        {t.ticketCode}
-                      </Link>
-                    </td>
-                    <td>
-                      <div className="cell-primary">{t.deviceId?.name || '—'}</div>
-                      <div className="cell-sub">
-                        <span className="mono">{t.deviceId?.deviceCode}</span> ·{' '}
-                        {t.deviceId?.customerId?.fullName || '—'} ({t.deviceId?.customerId?.phone || '—'})
-                      </div>
-                    </td>
-                    <td style={{ maxWidth: 280 }}>
-                      <div style={{ lineHeight: 1.45 }}>{t.issueDescription}</div>
-                    </td>
-                    <td>
-                      <div className="cell-primary">{t.technicianId?.fullName || '—'}</div>
-                      <div className="cell-sub mono">{t.technicianId?.code}</div>
-                    </td>
-                    <td style={{ textAlign: 'right' }} className="tabular">
-                      <div className="cell-primary">{formatVND(t.estimatedCost)}</div>
-                      <div className="cell-sub">
-                        {t.actualCost > 0 ? `TT: ${formatVND(t.actualCost)}` : 'Chưa chốt TT'}
-                      </div>
-                    </td>
-                    <td>
-                      <StatusBadge status={t.status} />
-                    </td>
-                    <td className="tabular cell-sub" style={{ whiteSpace: 'nowrap' }}>
-                      {formatDateShort(t.receivedAt)}
-                    </td>
-                    <td>
-                      <div className="cell-actions">
-                        <Link
-                          to={`/tickets/${t._id}`}
-                          className="btn btn-sm"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Chi tiết
-                          <ArrowRight size={13} />
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        <td>
+                          <Link
+                            to={`/tickets/${t._id}`}
+                            className="job-code"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {t.ticketCode}
+                          </Link>
+                        </td>
+                        <td>
+                          <div className="cell-primary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <DeviceTypeIcon type={t.deviceId?.deviceType} size={14} />
+                            <span>{t.deviceId?.name || '—'}</span>
+                          </div>
+                          <div className="cell-sub">
+                            <span className="mono">{t.deviceId?.deviceCode}</span> ·{' '}
+                            {t.deviceId?.customerId?.fullName || '—'} ({t.deviceId?.customerId?.phone || '—'})
+                          </div>
+                        </td>
+                        <td style={{ maxWidth: 280 }}>
+                          <div style={{ lineHeight: 1.45 }}>{t.issueDescription}</div>
+                        </td>
+                        <td>
+                          <div className="cell-primary">{t.technicianId?.fullName || '—'}</div>
+                          <div className="cell-sub mono">{t.technicianId?.code}</div>
+                        </td>
+                        <td style={{ textAlign: 'right' }} className="tabular">
+                          <div className="cell-primary">{formatVND(t.estimatedCost)}</div>
+                          <div className="cell-sub">
+                            {t.actualCost > 0 ? `TT: ${formatVND(t.actualCost)}` : 'Chưa chốt TT'}
+                          </div>
+                        </td>
+                        <td>
+                          <StatusBadge status={t.status} />
+                        </td>
+                        <td className="tabular cell-sub" style={{ whiteSpace: 'nowrap' }}>
+                          {formatDateShort(t.receivedAt)}
+                        </td>
+                        <td>
+                          <div className="cell-actions">
+                            <Link
+                              to={`/tickets/${t._id}`}
+                              className="btn btn-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Chi tiết
+                              <ArrowRight size={13} />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
 
+      {/* 5-Stage Workshop Kanban Board Mode */}
+      {viewMode === 'board' && (
+        <>
+          {loading ? (
+            <div className="panel panel-body">
+              <p className="field-hint">Đang tải bảng tiến độ sửa chữa…</p>
+            </div>
+          ) : (
+            <div className="kanban-board">
+              {TICKET_STATUSES.map((stage, stageIdx) => {
+                const items = boardColumns[stage] || [];
+                const nextStage = TICKET_STATUSES[stageIdx + 1];
+                return (
+                  <section key={stage} className="kanban-col" aria-label={stage}>
+                    <header className="kanban-col-head">
+                      <div className="kanban-col-title">
+                        <span
+                          className="kanban-col-dot"
+                          style={{ backgroundColor: STAGE_COLORS[stage] }}
+                          aria-hidden="true"
+                        />
+                        <span>{stage}</span>
+                      </div>
+                      <span className="chip-count">{items.length}</span>
+                    </header>
+
+                    <div className="kanban-col-body">
+                      {items.length === 0 ? (
+                        <div className="kanban-empty">Không có phiếu ở bước này</div>
+                      ) : (
+                        items.map((t) => (
+                          <article key={t._id} className="job-card">
+                            <div className="job-card-head">
+                              <Link to={`/tickets/${t._id}`} className="job-code">
+                                {t.ticketCode}
+                              </Link>
+                              <span className="cell-sub mono" style={{ marginTop: 0 }}>
+                                {formatDateShort(t.receivedAt)}
+                              </span>
+                            </div>
+
+                            <div>
+                              <Link to={`/tickets/${t._id}`} className="job-device">
+                                {t.deviceId?.name || '—'}
+                              </Link>
+                              <div className="cell-sub">
+                                {t.deviceId?.customerId?.fullName || '—'} ·{' '}
+                                <span className="mono">{t.deviceId?.deviceCode}</span>
+                              </div>
+                            </div>
+
+                            <p className="job-issue">{t.issueDescription}</p>
+
+                            <div className="job-meta">
+                              <span className="truncate">{t.technicianId?.fullName || '—'}</span>
+                              <strong className="tabular" style={{ color: 'var(--ink-primary)' }}>
+                                {formatVND(t.actualCost > 0 ? t.actualCost : t.estimatedCost)}
+                              </strong>
+                            </div>
+
+                            <div className="job-actions">
+                              <Link to={`/tickets/${t._id}`} className="btn btn-sm">
+                                Chi tiết
+                              </Link>
+                              {nextStage && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  style={{ borderColor: 'var(--accent-border)', color: 'var(--accent)' }}
+                                  disabled={advancingId === t._id}
+                                  onClick={() => handleAdvanceStatus(t)}
+                                  title={`Chuyển nhanh sang ${nextStage}`}
+                                >
+                                  {advancingId === t._id ? 'Đang chuyển…' : STATUS_META[nextStage].short}
+                                  <ChevronRight size={13} />
+                                </button>
+                              )}
+                            </div>
+                          </article>
+                        ))
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Create Ticket Drawer */}
       <Drawer
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -399,7 +639,7 @@ export function TicketsPage() {
               ))}
             </select>
             <span className="field-hint">
-              Thiết bị chưa có trong danh sách?{' '}
+              Thiết bị chưa có trong kho?{' '}
               <Link to="/intake" style={{ color: 'var(--accent)', fontWeight: 600 }}>
                 Chuyển sang trang Tiếp nhận thiết bị
               </Link>

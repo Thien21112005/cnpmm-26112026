@@ -12,6 +12,7 @@ import {
 import { repairStore } from '../services/repairStore';
 import { DEVICE_TYPES } from '../constants/repair';
 import { StatusBadge } from '../components/StatusBadge';
+import { DeviceTypeIcon } from '../components/DeviceTypeIcon';
 import { Drawer } from '../components/Drawer';
 import { EmptyState } from '../components/EmptyState';
 import { DeviceHistoryDrawer } from '../components/DeviceHistoryDrawer';
@@ -28,7 +29,7 @@ export function DevicesPage() {
 
   const [deviceType, setDeviceType] = useState(searchParams.get('deviceType') || '');
   const [customerFilter, setCustomerFilter] = useState(searchParams.get('customerId') || '');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
 
   const [historyDeviceId, setHistoryDeviceId] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -60,8 +61,18 @@ export function DevicesPage() {
     const next = {};
     if (deviceType) next.deviceType = deviceType;
     if (customerFilter) next.customerId = customerFilter;
+    if (search.trim()) next.search = search.trim();
     setSearchParams(next, { replace: true });
-  }, [deviceType, customerFilter, setSearchParams]);
+  }, [deviceType, customerFilter, search, setSearchParams]);
+
+  const typeCounts = useMemo(() => {
+    const map = {};
+    for (const t of DEVICE_TYPES) map[t] = 0;
+    for (const d of devices) {
+      if (map[d.deviceType] !== undefined) map[d.deviceType] += 1;
+    }
+    return map;
+  }, [devices]);
 
   const filteredDevices = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -118,9 +129,9 @@ export function DevicesPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Quản lý thiết bị</h1>
+          <h1 className="page-title">Kho thiết bị đã tiếp nhận</h1>
           <p className="page-subtitle">
-            Danh sách thiết bị đã tiếp nhận, lọc theo loại thiết bị và tra cứu lịch sử sửa chữa.
+            Tra cứu theo mã thiết bị, số serial, lọc theo nhóm phần cứng và mở nhanh toàn bộ lịch sử sửa chữa.
           </p>
         </div>
         <div className="header-actions">
@@ -131,6 +142,30 @@ export function DevicesPage() {
         </div>
       </div>
 
+      {/* Category Filter Pills */}
+      <div className="chip-row" role="group" aria-label="Lọc nhanh theo loại thiết bị">
+        <button
+          type="button"
+          className={`filter-chip${deviceType === '' ? ' selected' : ''}`}
+          onClick={() => setDeviceType('')}
+        >
+          <span>Tất cả thiết bị</span>
+          <span className="chip-count">{devices.length}</span>
+        </button>
+        {DEVICE_TYPES.map((type) => (
+          <button
+            key={type}
+            type="button"
+            className={`filter-chip${deviceType === type ? ' selected' : ''}`}
+            onClick={() => setDeviceType((cur) => (cur === type ? '' : type))}
+          >
+            <DeviceTypeIcon type={type} size={13} />
+            <span>{type}</span>
+            <span className="chip-count">{typeCounts[type] || 0}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="panel">
         <div className="toolbar">
           <div className="search-box">
@@ -138,26 +173,12 @@ export function DevicesPage() {
             <input
               type="search"
               className="input"
-              placeholder="Tìm mã thiết bị, tên, model, số serial hoặc chủ sở hữu…"
+              placeholder="Tìm mã thiết bị, tên, thương hiệu, model, số serial hoặc chủ sở hữu…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Tìm kiếm thiết bị"
             />
           </div>
-
-          <select
-            className="select select-inline"
-            value={deviceType}
-            onChange={(e) => setDeviceType(e.target.value)}
-            aria-label="Lọc theo loại thiết bị"
-          >
-            <option value="">Tất cả loại thiết bị</option>
-            {DEVICE_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
 
           <select
             className="select select-inline"
@@ -211,19 +232,21 @@ export function DevicesPage() {
               <thead>
                 <tr>
                   <th>Mã TB</th>
-                  <th>Tên & Cấu hình</th>
+                  <th>Thiết bị & Hãng</th>
                   <th>Loại</th>
                   <th>Số serial</th>
                   <th>Khách hàng sở hữu</th>
                   <th>Tình trạng ban đầu</th>
-                  <th>Sửa chữa gần nhất</th>
+                  <th>Phiếu gần nhất</th>
                   <th style={{ textAlign: 'right' }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredDevices.map((d) => (
                   <tr key={d._id}>
-                    <td className="mono cell-primary">{d.deviceCode}</td>
+                    <td>
+                      <span className="job-code">{d.deviceCode}</span>
+                    </td>
                     <td>
                       <div className="cell-primary">{d.name}</div>
                       <div className="cell-sub">
@@ -231,25 +254,38 @@ export function DevicesPage() {
                       </div>
                     </td>
                     <td>
-                      <span className="type-tag">{d.deviceType}</span>
+                      <span className="type-tag">
+                        <DeviceTypeIcon type={d.deviceType} size={13} />
+                        {d.deviceType}
+                      </span>
                     </td>
-                    <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                      {d.serialNumber}
+                    <td>
+                      <span className="serial-plate">{d.serialNumber}</span>
                     </td>
                     <td>
                       <div className="cell-primary">{d.customerId?.fullName || '—'}</div>
                       <div className="cell-sub tabular">{d.customerId?.phone || '—'}</div>
                     </td>
                     <td style={{ maxWidth: 230 }}>
-                      <div className="cell-sub" style={{ color: 'var(--ink-secondary)', marginTop: 0 }}>
+                      <div
+                        className="cell-sub"
+                        style={{ color: 'var(--ink-secondary)', marginTop: 0 }}
+                      >
                         {d.initialCondition}
                       </div>
                     </td>
                     <td>
                       {d.latestStatus ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                            alignItems: 'flex-start',
+                          }}
+                        >
                           <StatusBadge status={d.latestStatus} />
-                          <span className="cell-sub tabular">{d.ticketCount} phiếu</span>
+                          <span className="cell-sub tabular">{d.ticketCount} lần sửa</span>
                         </div>
                       ) : (
                         <span className="cell-sub">Chưa có phiếu</span>
@@ -276,6 +312,7 @@ export function DevicesPage() {
                         <button
                           type="button"
                           className="btn btn-sm"
+                          style={{ borderColor: 'var(--accent-border)', color: 'var(--accent)' }}
                           title="Tạo phiếu sửa mới cho thiết bị này"
                           onClick={() => navigate(`/tickets?newForDevice=${d._id}`)}
                           aria-label={`Tạo phiếu cho ${d.deviceCode}`}
@@ -331,6 +368,7 @@ export function DevicesPage() {
                 <input
                   id="ed-code"
                   type="text"
+                  spellCheck={false}
                   className="input mono"
                   required
                   value={editForm.deviceCode}
@@ -391,6 +429,7 @@ export function DevicesPage() {
                 <input
                   id="ed-model"
                   type="text"
+                  spellCheck={false}
                   className="input"
                   required
                   value={editForm.model}
@@ -405,6 +444,7 @@ export function DevicesPage() {
                 <input
                   id="ed-serial"
                   type="text"
+                  spellCheck={false}
                   className="input mono"
                   required
                   value={editForm.serialNumber}
@@ -452,4 +492,3 @@ export function DevicesPage() {
     </div>
   );
 }
-

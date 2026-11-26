@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, UserPlus } from 'lucide-react';
 import { repairStore } from '../services/repairStore';
 import { DEVICE_TYPES, formatVND } from '../constants/repair';
+import { DeviceTypeIcon } from '../components/DeviceTypeIcon';
 import { useToast } from '../components/Toast';
 
 export function IntakePage() {
@@ -59,6 +60,22 @@ export function IntakePage() {
       });
   }, []);
 
+  const previewOwner = useMemo(() => {
+    if (newCustomerMode) {
+      return {
+        fullName: newCustomer.fullName.trim() || 'Khách hàng mới',
+        phone: newCustomer.phone.trim() || 'Chưa nhập SĐT',
+      };
+    }
+    const found = customers.find((c) => c._id === customerId);
+    return found || { fullName: 'Chưa chọn khách', phone: '—' };
+  }, [newCustomerMode, newCustomer, customers, customerId]);
+
+  const previewTech = useMemo(
+    () => technicians.find((t) => t._id === ticketForm.technicianId),
+    [technicians, ticketForm.technicianId]
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -103,14 +120,14 @@ export function IntakePage() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Tiếp nhận thiết bị mới</h1>
+          <h1 className="page-title">Quầy tiếp nhận thiết bị</h1>
           <p className="page-subtitle">
-            Ghi nhận đầy đủ 8 thông tin thiết bị, liên kết khách hàng sở hữu và lập ngay phiếu sửa chữa.
+            Ghi nhận đủ 8 trường thông tin máy, liên kết khách hàng sở hữu và in tem tiếp nhận kèm phiếu sửa chữa.
           </p>
         </div>
         <div className="header-actions">
           <Link to="/devices" className="btn">
-            Xem danh sách thiết bị
+            Xem kho thiết bị
           </Link>
         </div>
       </div>
@@ -197,6 +214,7 @@ export function IntakePage() {
                     <input
                       id="nc-email"
                       type="email"
+                      spellCheck={false}
                       className="input"
                       placeholder="khachhang@gmail.com"
                       value={newCustomer.email}
@@ -228,9 +246,33 @@ export function IntakePage() {
           {/* Device 8 Fields */}
           <section className="panel">
             <div className="panel-header">
-              <h2 className="panel-title">Thông tin thiết bị tiếp nhận</h2>
+              <h2 className="panel-title">Thông số thiết bị tiếp nhận</h2>
             </div>
-            <div className="panel-body">
+            <div className="panel-body stack-v">
+              <div className="form-field">
+                <span className="field-label">
+                  Loại thiết bị<span className="field-req">*</span>
+                </span>
+                <div className="type-picker" role="radiogroup" aria-label="Loại thiết bị">
+                  {DEVICE_TYPES.map((type) => {
+                    const selected = device.deviceType === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={`type-option${selected ? ' selected' : ''}`}
+                        onClick={() => setDevice((d) => ({ ...d, deviceType: type }))}
+                      >
+                        <DeviceTypeIcon type={type} size={18} />
+                        <span>{type}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="form-grid">
                 <div className="form-field">
                   <label className="field-label" htmlFor="dev-code">
@@ -239,6 +281,7 @@ export function IntakePage() {
                   <input
                     id="dev-code"
                     type="text"
+                    spellCheck={false}
                     className="input mono"
                     required
                     value={device.deviceCode}
@@ -247,21 +290,19 @@ export function IntakePage() {
                 </div>
 
                 <div className="form-field">
-                  <label className="field-label" htmlFor="dev-type">
-                    Loại thiết bị<span className="field-req">*</span>
+                  <label className="field-label" htmlFor="dev-serial">
+                    Số serial / IMEI<span className="field-req">*</span>
                   </label>
-                  <select
-                    id="dev-type"
-                    className="select"
-                    value={device.deviceType}
-                    onChange={(e) => setDevice((d) => ({ ...d, deviceType: e.target.value }))}
-                  >
-                    {DEVICE_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    id="dev-serial"
+                    type="text"
+                    spellCheck={false}
+                    className="input mono"
+                    required
+                    placeholder="Nhập chính xác số serial…"
+                    value={device.serialNumber}
+                    onChange={(e) => setDevice((d) => ({ ...d, serialNumber: e.target.value }))}
+                  />
                 </div>
 
                 <div className="form-field full">
@@ -273,7 +314,7 @@ export function IntakePage() {
                     type="text"
                     className="input"
                     required
-                    placeholder="Ví dụ: iPhone 16 Pro 256GB hoặc ThinkPad X1 Carbon Gen 11"
+                    placeholder="Ví dụ: iPhone 16 Pro 256GB hoặc ThinkPad X1 Carbon Gen 11…"
                     value={device.name}
                     onChange={(e) => setDevice((d) => ({ ...d, name: e.target.value }))}
                   />
@@ -301,26 +342,12 @@ export function IntakePage() {
                   <input
                     id="dev-model"
                     type="text"
+                    spellCheck={false}
                     className="input"
                     required
-                    placeholder="Ví dụ: A3106, XPS-9340"
+                    placeholder="Ví dụ: A3106, XPS-9340…"
                     value={device.model}
                     onChange={(e) => setDevice((d) => ({ ...d, model: e.target.value }))}
-                  />
-                </div>
-
-                <div className="form-field full">
-                  <label className="field-label" htmlFor="dev-serial">
-                    Số serial / IMEI<span className="field-req">*</span>
-                  </label>
-                  <input
-                    id="dev-serial"
-                    type="text"
-                    className="input mono"
-                    required
-                    placeholder="Nhập chính xác số serial trên vỏ máy hoặc khay SIM"
-                    value={device.serialNumber}
-                    onChange={(e) => setDevice((d) => ({ ...d, serialNumber: e.target.value }))}
                   />
                 </div>
 
@@ -344,103 +371,159 @@ export function IntakePage() {
           </section>
         </div>
 
-        {/* Right Panel: Optional Instant Ticket */}
-        <aside className="panel" style={{ position: 'sticky', top: 20 }}>
-          <div className="panel-header">
-            <h2 className="panel-title">Phiếu sửa chữa đi kèm</h2>
-          </div>
-          <div className="panel-body stack-v">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={openTicketNow}
-                onChange={(e) => setOpenTicketNow(e.target.checked)}
-              />
-              <span>Lập ngay phiếu sửa chữa sau khi tiếp nhận</span>
-            </label>
+        {/* Right Panel: Live Hardware Claim Tag Preview + Instant Ticket */}
+        <aside className="stack-v" style={{ position: 'sticky', top: 20 }}>
+          <div className="claim-preview" aria-label="Xem trước tem tiếp nhận">
+            <div className="claim-preview-head">
+              <div>
+                <div
+                  className="mono"
+                  style={{ fontWeight: 700, color: '#fb923c', fontSize: 13 }}
+                >
+                  {device.deviceCode || 'TB-2026-XXX'}
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--rail-muted)' }}>
+                  Tem dán thiết bị · FixDesk Lab
+                </div>
+              </div>
+              <div className="claim-barcode" aria-hidden="true" />
+            </div>
 
-            {openTicketNow ? (
+            <div className="claim-row">
+              <span>Thiết bị</span>
+              <span>{device.name.trim() || 'Chưa nhập tên máy'}</span>
+            </div>
+            <div className="claim-row">
+              <span>Phân loại</span>
+              <span>
+                {device.deviceType}
+                {device.brand ? ` · ${device.brand}` : ''}
+              </span>
+            </div>
+            <div className="claim-row">
+              <span>Serial</span>
+              <span className="mono">{device.serialNumber.trim() || '—'}</span>
+            </div>
+            <div className="claim-row">
+              <span>Khách hàng</span>
+              <span>{previewOwner.fullName}</span>
+            </div>
+            <div className="claim-row">
+              <span>Điện thoại</span>
+              <span className="tabular">{previewOwner.phone}</span>
+            </div>
+            {openTicketNow && (
               <>
-                <div className="form-field">
-                  <label className="field-label" htmlFor="in-tech">
-                    Kỹ thuật viên phụ trách<span className="field-req">*</span>
-                  </label>
-                  <select
-                    id="in-tech"
-                    className="select"
-                    required
-                    value={ticketForm.technicianId}
-                    onChange={(e) =>
-                      setTicketForm((p) => ({ ...p, technicianId: e.target.value }))
-                    }
-                  >
-                    {technicians.map((tech) => (
-                      <option key={tech._id} value={tech._id}>
-                        {tech.code} · {tech.fullName} ({tech.specialty})
-                      </option>
-                    ))}
-                  </select>
+                <div className="claim-row">
+                  <span>KTV phụ trách</span>
+                  <span>{previewTech ? previewTech.fullName : '—'}</span>
                 </div>
-
-                <div className="form-field">
-                  <label className="field-label" htmlFor="in-issue">
-                    Lỗi thiết bị ghi nhận<span className="field-req">*</span>
-                  </label>
-                  <textarea
-                    id="in-issue"
-                    className="textarea"
-                    required
-                    placeholder="Mô tả lỗi khách phản ánh và hạng mục cần kiểm tra / sửa chữa…"
-                    value={ticketForm.issueDescription}
-                    onChange={(e) =>
-                      setTicketForm((p) => ({ ...p, issueDescription: e.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="form-field">
-                  <label className="field-label" htmlFor="in-cost">
-                    Chi phí dự kiến (VNĐ)<span className="field-req">*</span>
-                  </label>
-                  <input
-                    id="in-cost"
-                    type="number"
-                    min="0"
-                    step="10000"
-                    className="input tabular"
-                    required
-                    placeholder="1200000"
-                    value={ticketForm.estimatedCost}
-                    onChange={(e) =>
-                      setTicketForm((p) => ({ ...p, estimatedCost: e.target.value }))
-                    }
-                  />
-                  {Number(ticketForm.estimatedCost) > 0 && (
-                    <span className="field-hint tabular">
-                      {formatVND(ticketForm.estimatedCost)}
-                    </span>
-                  )}
+                <div className="claim-row">
+                  <span>Dự kiến</span>
+                  <span className="tabular" style={{ color: '#4ade80' }}>
+                    {formatVND(ticketForm.estimatedCost || 0)}
+                  </span>
                 </div>
               </>
-            ) : (
-              <p className="field-hint">
-                Hệ thống sẽ chỉ lưu hồ sơ thiết bị vào kho tiếp nhận. Bạn có thể lập phiếu sửa chữa
-                sau từ trang Quản lý thiết bị hoặc Phiếu sửa chữa.
-              </p>
             )}
-
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              <CheckCircle2 size={15} />
-              {submitting
-                ? 'Đang xử lý…'
-                : openTicketNow
-                  ? 'Hoàn tất tiếp nhận & mở phiếu'
-                  : 'Lưu hồ sơ thiết bị'}
-            </button>
           </div>
+
+          <section className="panel">
+            <div className="panel-header">
+              <h2 className="panel-title">Phiếu sửa chữa đi kèm</h2>
+            </div>
+            <div className="panel-body stack-v">
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={openTicketNow}
+                  onChange={(e) => setOpenTicketNow(e.target.checked)}
+                />
+                <span>Lập ngay phiếu sửa chữa sau khi tiếp nhận</span>
+              </label>
+
+              {openTicketNow ? (
+                <>
+                  <div className="form-field">
+                    <label className="field-label" htmlFor="in-tech">
+                      Kỹ thuật viên phụ trách<span className="field-req">*</span>
+                    </label>
+                    <select
+                      id="in-tech"
+                      className="select"
+                      required
+                      value={ticketForm.technicianId}
+                      onChange={(e) =>
+                        setTicketForm((p) => ({ ...p, technicianId: e.target.value }))
+                      }
+                    >
+                      {technicians.map((tech) => (
+                        <option key={tech._id} value={tech._id}>
+                          {tech.code} · {tech.fullName} ({tech.specialty})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-field">
+                    <label className="field-label" htmlFor="in-issue">
+                      Lỗi thiết bị ghi nhận<span className="field-req">*</span>
+                    </label>
+                    <textarea
+                      id="in-issue"
+                      className="textarea"
+                      required
+                      placeholder="Mô tả lỗi khách phản ánh và hạng mục cần kiểm tra / sửa chữa…"
+                      value={ticketForm.issueDescription}
+                      onChange={(e) =>
+                        setTicketForm((p) => ({ ...p, issueDescription: e.target.value }))
+                      }
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label className="field-label" htmlFor="in-cost">
+                      Chi phí dự kiến (VNĐ)<span className="field-req">*</span>
+                    </label>
+                    <input
+                      id="in-cost"
+                      type="number"
+                      min="0"
+                      step="10000"
+                      className="input tabular"
+                      required
+                      placeholder="1200000"
+                      value={ticketForm.estimatedCost}
+                      onChange={(e) =>
+                        setTicketForm((p) => ({ ...p, estimatedCost: e.target.value }))
+                      }
+                    />
+                    {Number(ticketForm.estimatedCost) > 0 && (
+                      <span className="field-hint tabular">
+                        {formatVND(ticketForm.estimatedCost)}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="field-hint">
+                  Hệ thống sẽ chỉ lưu hồ sơ thiết bị vào kho tiếp nhận. Bạn có thể lập phiếu sửa chữa
+                  sau từ trang Kho thiết bị hoặc Phiếu sửa chữa.
+                </p>
+              )}
+
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
+                <CheckCircle2 size={15} />
+                {submitting
+                  ? 'Đang xử lý…'
+                  : openTicketNow
+                    ? 'Hoàn tất tiếp nhận & mở phiếu'
+                    : 'Lưu hồ sơ thiết bị'}
+              </button>
+            </div>
+          </section>
         </aside>
       </form>
     </div>
   );
 }
-
