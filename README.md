@@ -1,6 +1,6 @@
 # Bài tập nhóm - Công nghệ Phần mềm Mới (MongoDB & ReactJS)
 
-Repository tổng hợp hai bài tập xây dựng ứng dụng web fullstack sử dụng Node.js, Express, MongoDB (Mongoose) và ReactJS, được tổ chức tách biệt theo từng module để thuận tiện phát triển song song và chuyển đổi qua lại khi chạy demo hoặc kiểm thử.
+Repository tổng hợp hai bài tập xây dựng ứng dụng web sử dụng Node.js, MongoDB và ReactJS, được tổ chức tách biệt theo từng module để thuận tiện phát triển song song và chuyển đổi qua lại khi chạy demo hoặc kiểm thử.
 
 Tài liệu đặc tả đề bài: [`doc/BT_DATA.pdf`](doc/BT_DATA.pdf)
 
@@ -36,12 +36,12 @@ BaiTapNhom/
 ├── doc/
 │   └── BT_DATA.pdf                # Tài liệu đặc tả cả 2 bài tập
 ├── bai1-quan-ly-dat-ban/          # Module Bài 1
-│   ├── backend/                   # Express + Mongoose API (port 5001)
-│   ├── frontend/                  # ReactJS + Vite UI (port 5173)
+│   ├── backend/                   # Node.js + MongoDB API (port 5001)
+│   ├── frontend/                  # ReactJS UI (port 5173)
 │   └── README.md
 ├── bai2-bao-hanh-sua-chua/        # Module Bài 2
-│   ├── backend/                   # Express + Mongoose API (port 5002)
-│   ├── frontend/                  # ReactJS + Vite UI (port 5174)
+│   ├── backend/                   # Node.js + MongoDB API (port 5002)
+│   ├── frontend/                  # ReactJS UI (port 5174)
 │   └── README.md
 ├── package.json                   # Lệnh chạy và chuyển đổi nhanh giữa Bài 1 và Bài 2
 ├── .gitignore
