@@ -12,3 +12,4 @@
     "bai2:fe": "npm --prefix bai2-bao-hanh-sua-chua/frontend run dev"
   }
 }
+
