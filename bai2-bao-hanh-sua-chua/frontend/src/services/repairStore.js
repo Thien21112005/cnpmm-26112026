@@ -247,6 +247,10 @@ export const repairStore = {
   },
 
   async suggestDeviceCode() {
+    if (await probeApi()) {
+      const devices = await this.getDevices();
+      return nextSequenceCode('TB', devices, 'deviceCode');
+    }
     const db = loadLocalDB();
     return nextSequenceCode('TB', db.devices, 'deviceCode');
   },
